@@ -76,7 +76,7 @@ struct display_stm32_ltdc_config {
 	uint32_t width;
 	uint32_t height;
 	struct gpio_dt_spec disp_on_gpio;
-	struct gpio_dt_spec bl_ctrl_gpio;
+	struct gpio_dt_spec bl_ctrl_gpio[2];
 	struct stm32_pclken pclken;
 	const struct reset_dt_spec reset;
 	const struct pinctrl_dev_config *pctrl;
@@ -336,6 +336,33 @@ static int stm32_ltdc_disable_clut(const struct device *dev)
 	return 0;
 }
 
+static int stm32_ltdc_set_brightness(const struct device *dev,
+				const uint8_t brightness)
+{
+	int err = -ENOTSUP;
+	const struct display_stm32_ltdc_config *config = dev->config;
+
+	if (config->bl_ctrl_gpio[0].port) {
+		err = gpio_pin_set_dt(&config->bl_ctrl_gpio[0], brightness);
+	}
+
+	if (config->bl_ctrl_gpio[1].port) {
+		err = gpio_pin_set_dt(&config->bl_ctrl_gpio[1], brightness);
+	}
+
+	if (!brightness) {
+		k_msleep(5);
+
+		if (config->disp_on_gpio.port) {
+			err = gpio_pin_set_dt(&config->disp_on_gpio, brightness);
+		}
+
+		k_msleep(80);
+	}
+
+	return err;
+}
+
 static int stm32_ltdc_init(const struct device *dev)
 {
 	int err;
@@ -349,11 +376,22 @@ static int stm32_ltdc_init(const struct device *dev)
 			LOG_ERR("Configuration of display on/off control GPIO failed");
 			return err;
 		}
+
+        k_msleep(10);
 	}
 
 	/* Configure and set display backlight control GPIO */
-	if (config->bl_ctrl_gpio.port) {
-		err = gpio_pin_configure_dt(&config->bl_ctrl_gpio, GPIO_OUTPUT_ACTIVE);
+	if (config->bl_ctrl_gpio[0].port) {
+		err = gpio_pin_configure_dt(&config->bl_ctrl_gpio[0], GPIO_OUTPUT_INACTIVE);
+		if (err < 0) {
+			LOG_ERR("Configuration of display backlight control GPIO failed");
+			return err;
+		}
+	}
+
+	/* Configure and set display backlight control GPIO */
+	if (config->bl_ctrl_gpio[1].port) {
+		err = gpio_pin_configure_dt(&config->bl_ctrl_gpio[1], GPIO_OUTPUT_INACTIVE);
 		if (err < 0) {
 			LOG_ERR("Configuration of display backlight control GPIO failed");
 			return err;
@@ -467,8 +505,15 @@ static int stm32_ltdc_suspend(const struct device *dev)
 	}
 
 	/* Turn off backlight (if its GPIO is defined in device tree) */
-	if (config->bl_ctrl_gpio.port) {
-		err = gpio_pin_set_dt(&config->bl_ctrl_gpio, 0);
+	if (config->bl_ctrl_gpio[0].port) {
+		err = gpio_pin_set_dt(&config->bl_ctrl_gpio[0], 0);
+		if (err < 0) {
+			return err;
+		}
+	}
+
+	if (config->bl_ctrl_gpio[1].port) {
+		err = gpio_pin_set_dt(&config->bl_ctrl_gpio[1], 0);
 		if (err < 0) {
 			return err;
 		}
@@ -519,6 +564,7 @@ static DEVICE_API(display, stm32_ltdc_display_api) = {
 	.blanking_on = stm32_ltdc_display_blanking_on,
 	.enable_clut = stm32_ltdc_enable_clut,
 	.disable_clut = stm32_ltdc_disable_clut,
+	.set_brightness = stm32_ltdc_set_brightness,
 };
 
 #if DT_INST_NODE_HAS_PROP(0, ext_sdram)
@@ -655,8 +701,10 @@ static DEVICE_API(display, stm32_ltdc_display_api) = {
 		.height = DT_INST_PROP(inst, height),						\
 		.disp_on_gpio = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, disp_on_gpios),		\
 				(GPIO_DT_SPEC_INST_GET(inst, disp_on_gpios)), ({ 0 })),		\
-		.bl_ctrl_gpio = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, bl_ctrl_gpios),		\
-				(GPIO_DT_SPEC_INST_GET(inst, bl_ctrl_gpios)), ({ 0 })),		\
+		.bl_ctrl_gpio = {								\
+			GPIO_DT_SPEC_INST_GET_BY_IDX_OR(inst, bl_ctrl_gpios, 0, ({ 0 })),	\
+			GPIO_DT_SPEC_INST_GET_BY_IDX_OR(inst, bl_ctrl_gpios, 1, ({ 0 }))	\
+		},										\
 		.reset = RESET_DT_SPEC_INST_GET(0),						\
 		.pclken = {									\
 			.enr = DT_INST_CLOCKS_CELL(inst, bits),					\
