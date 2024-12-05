@@ -53,6 +53,10 @@ LOG_MODULE_REGISTER(display_stm32_ltdc, CONFIG_DISPLAY_LOG_LEVEL);
 #define STM32_LTDC_INIT_PIXEL_SIZE	2u
 #define STM32_LTDC_INIT_PIXEL_FORMAT	LTDC_PIXEL_FORMAT_RGB565
 #define DISPLAY_INIT_PIXEL_FORMAT	PIXEL_FORMAT_RGB_565
+#elif CONFIG_STM32_LTDC_L8
+#define STM32_LTDC_INIT_PIXEL_SIZE	1u
+#define STM32_LTDC_INIT_PIXEL_FORMAT	LTDC_PIXEL_FORMAT_L8
+#define DISPLAY_INIT_PIXEL_FORMAT	PIXEL_FORMAT_L8
 #else
 #error "Invalid LTDC pixel format chosen"
 #endif
@@ -120,6 +124,10 @@ static int stm32_ltdc_set_pixel_format(const struct device *dev,
 		err = HAL_LTDC_SetPixelFormat(&data->hltdc, LTDC_PIXEL_FORMAT_ARGB8888, 0);
 		data->current_pixel_format = PIXEL_FORMAT_ARGB_8888;
 		data->current_pixel_size = 4u;
+	case PIXEL_FORMAT_L8:
+		err = HAL_LTDC_SetPixelFormat(&data->hltdc, LTDC_PIXEL_FORMAT_L8, 0);
+		data->current_pixel_format = PIXEL_FORMAT_L8;
+		data->current_pixel_size = 1u;
 	default:
 		err = -ENOTSUP;
 		break;
@@ -153,7 +161,8 @@ static void stm32_ltdc_get_capabilities(const struct device *dev,
 				     data->hltdc.LayerCfg[0].WindowY0;
 	capabilities->supported_pixel_formats = PIXEL_FORMAT_ARGB_8888 |
 					PIXEL_FORMAT_RGB_888 |
-					PIXEL_FORMAT_RGB_565;
+					PIXEL_FORMAT_RGB_565 |
+					PIXEL_FORMAT_L8;
 	capabilities->screen_info = 0;
 
 	capabilities->current_pixel_format = data->current_pixel_format;
@@ -292,6 +301,39 @@ static int stm32_ltdc_display_blanking_on(const struct device *dev)
 	}
 
 	return display_blanking_on(display_dev);
+}
+
+static int stm32_ltdc_enable_clut(const struct device *dev, const uint32_t *clut,
+				uint32_t size)
+{
+	int err;
+	struct display_stm32_ltdc_data *data = dev->data;
+	uint32_t *pclut = (uint32_t*)clut;
+
+	err = HAL_LTDC_ConfigCLUT(&data->hltdc, pclut, size, 0);
+	if (err != HAL_OK) {
+		return err;
+	}
+
+	err = HAL_LTDC_EnableCLUT(&data->hltdc, 0);
+	if (err != HAL_OK) {
+		return err;
+	}
+
+	return 0;
+}
+
+static int stm32_ltdc_disable_clut(const struct device *dev)
+{
+	int err;
+	struct display_stm32_ltdc_data *data = dev->data;
+
+	err = HAL_LTDC_DisableCLUT(&data->hltdc, 0);
+	if (err != HAL_OK) {
+		return err;
+	}
+
+	return 0;
 }
 
 static int stm32_ltdc_init(const struct device *dev)
@@ -475,6 +517,8 @@ static DEVICE_API(display, stm32_ltdc_display_api) = {
 	.set_orientation = stm32_ltdc_set_orientation,
 	.blanking_off = stm32_ltdc_display_blanking_off,
 	.blanking_on = stm32_ltdc_display_blanking_on,
+	.enable_clut = stm32_ltdc_enable_clut,
+	.disable_clut = stm32_ltdc_disable_clut,
 };
 
 #if DT_INST_NODE_HAS_PROP(0, ext_sdram)

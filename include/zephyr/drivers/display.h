@@ -46,6 +46,7 @@ enum display_pixel_format {
 	PIXEL_FORMAT_ARGB_8888		= BIT(3), /**< 32-bit ARGB */
 	PIXEL_FORMAT_RGB_565		= BIT(4), /**< 16-bit RGB */
 	PIXEL_FORMAT_BGR_565		= BIT(5), /**< 16-bit BGR */
+	PIXEL_FORMAT_L8				= BIT(6), /**< 8-bit CLUT index */
 };
 
 /**
@@ -214,6 +215,21 @@ typedef int (*display_set_pixel_format_api)(const struct device *dev,
 typedef int (*display_set_orientation_api)(const struct device *dev,
 					   const enum display_orientation
 					   orientation);
+/**
+ * @typedef display_enable_clut
+ * @brief Callback API to enable the color lookup table for the display
+ * See display_enable_clut() for argument description
+ */
+typedef int (*display_enable_clut_api)(const struct device *dev,
+					    const uint32_t *clut,
+					    uint32_t size);
+
+/**
+ * @typedef display_disable_clut
+ * @brief Callback API to disable the color lookup table for the display
+ * See display_disable_clut() for argument description
+ */
+typedef int (*display_disable_clut_api)(const struct device *dev);
 
 /**
  * @brief Display driver API
@@ -230,6 +246,8 @@ __subsystem struct display_driver_api {
 	display_get_capabilities_api get_capabilities;
 	display_set_pixel_format_api set_pixel_format;
 	display_set_orientation_api set_orientation;
+	display_enable_clut_api enable_clut;
+	display_disable_clut_api disable_clut;
 };
 
 /**
@@ -466,6 +484,50 @@ static inline int display_set_orientation(const struct device *dev,
 	}
 
 	return api->set_orientation(dev, orientation);
+}
+
+/**
+ * @brief Enable the CLUT
+ *
+ * @param dev Pointer to device structure
+ * @param clut The CLUT
+ * @param size Size of the CLUT
+ *
+ * @retval 0 on success else negative errno code.
+ * @retval -ENOSYS if not implemented.
+ */
+static inline int display_enable_clut(const struct device *dev,
+					    const uint32_t *clut,
+					    uint32_t size)
+{
+	struct display_driver_api *api =
+		(struct display_driver_api *)dev->api;
+
+	if (api->enable_clut == NULL) {
+		return -ENOSYS;
+	}
+
+	return api->enable_clut(dev, clut, size);
+}
+
+/**
+ * @brief Disable the CLUT
+ *
+ * @param dev Pointer to device structure
+ *
+ * @retval 0 on success else negative errno code.
+ * @retval -ENOSYS if not implemented.
+ */
+static inline int display_disable_clut(const struct device *dev)
+{
+	struct display_driver_api *api =
+		(struct display_driver_api *)dev->api;
+
+	if (api->disable_clut == NULL) {
+		return -ENOSYS;
+	}
+
+	return api->disable_clut(dev);
 }
 
 #ifdef __cplusplus

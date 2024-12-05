@@ -40,6 +40,11 @@ config STM32_LTDC_RGB565
 	  One pixel consists of 5-bit red, 6-bit green and 5-bit blue value
 	  (2 bytes per pixel)
 
+config STM32_LTDC_L8
+	bool "L8"
+	help
+	  One pixel consists of 1 byte containing an index to a LUT
+
 endchoice
 
 config STM32_LTDC_FB_NUM
