@@ -1,0 +1,19 @@
+# Copyright (c) 2024 Domologic Home Automation GmbH
+# SPDX-License-Identifier: Apache-2.0
+
+description: Atmel maxTouch capacitive touch sensor
+
+compatible: "atmel,maxtouch"
+
+include: ["i2c-device.yaml"]
+
+properties:
+  int-gpios:
+    type: phandle-array
+    description: Interrupt pin for the device
+    required: true
+
+  rst-gpios:
+    type: phandle-array
+    description: Reset pin for the device
+    required: true

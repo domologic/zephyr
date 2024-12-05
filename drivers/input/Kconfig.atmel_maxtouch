@@ -1,0 +1,12 @@
+# Copyright (c) 2024 Domologic Home Automation GmbH
+# SPDX-License-Identifier: Apache-2.0
+
+config INPUT_ATMEL_MAXTOUCH
+    bool "Atmel maXTouch trackpads"
+    default y
+    depends on GPIO
+    depends on I2C
+    depends on INPUT
+    depends on DT_HAS_ATMEL_MAXTOUCH_ENABLED
+    help
+      Enable support for Atmel maXTouch trackpads
